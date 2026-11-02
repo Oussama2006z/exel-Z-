@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ورقة الجداول - Sheet Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@400;700&family=Almarai:wght@400;700&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Reem+Kufi:wght@400;700&family=El+Messiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Lateef&family=Changa:wght@400;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&family=Montserrat:wght@400;700&family=Poppins:wght@400;700&family=Lato:wght@400;700&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#cfd6df;font-family:'Cairo',sans-serif;padding-bottom:60px}
+.bar{position:sticky;top:0;z-index:50;background:#0b1b33;color:#fff;padding:8px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.grp{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:4px 8px;border:1px solid rgba(255,255,255,.18);border-radius:8px}
+.grp b{font-size:12px;color:#7dd3fc;margin-inline-end:4px}
+.bar input[type=number]{width:56px}
+.bar input,.bar select,.bar button{font-family:inherit;font-size:13px;padding:5px 8px;border-radius:6px;border:0}
+.bar select{max-width:150px}
+.bar button{background:#e6eef9;color:#0b1b33;cursor:pointer;font-weight:700}
+.bar button:hover{background:#00f2fe}
+.bar button.pri{background:#00f2fe}
+.bar button.dng{background:#ffb4b4}
+.bar input[type=color]{padding:0;width:32px;height:28px;cursor:pointer;background:none}
+.bar label{display:flex;align-items:center;gap:4px}
+#stage{padding:14px 0;overflow:auto}
+#wrap{width:794px;margin:0 auto;transform-origin:top center}
+#sheet{position:relative;width:794px;min-height:1123px;background:#fff;color:#000;padding:40px 36px 50px;box-shadow:0 4px 24px rgba(0,0,0,.35);font-family:var(--font,'Cairo'),sans-serif}
+#head{min-height:30px;font-size:20px;font-weight:700;text-align:center;margin-bottom:12px;outline:none}
+#head:empty::before{content:attr(data-ph);color:#aab;font-weight:400}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+td{border:1px solid #000;padding:4px 6px;height:30px;text-align:center;font-size:14px;word-break:break-word;outline:none;vertical-align:middle}
+td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18));box-shadow:inset 0 0 0 2px #0476ff}
+#layer{position:absolute;inset:0;pointer-events:none}
+.obj{position:absolute;pointer-events:auto;touch-action:none;cursor:move}
+.obj.on{outline:2px dashed #0476ff}
+.obj svg{width:100%;height:100%;display:block;overflow:visible}
+.obj img{width:100%;height:100%;display:block;object-fit:fill;pointer-events:none;-webkit-user-drag:none}
+.obj .tx{width:100%;height:100%;padding:6px;outline:none;overflow:hidden;font-size:16px;cursor:text;word-break:break-word}
+.mv,.rs{display:none;position:absolute;background:#0476ff;color:#fff}
+.obj.on .mv,.obj.on .rs{display:block}
+.mv{top:-22px;left:0;padding:0 7px;border-radius:5px;font-size:13px;cursor:move}
+.rs{right:-7px;bottom:-7px;width:14px;height:14px;border-radius:50%;cursor:nwse-resize}
+.foot{position:fixed;bottom:0;inset-inline:0;background:#0b1b33;color:#fff;text-align:center;padding:7px;z-index:60}
+.foot button{background:linear-gradient(135deg,#0476ff,#00f2fe);border:0;color:#000;font-family:inherit;font-weight:800;padding:6px 18px;border-radius:20px;cursor:pointer}
+#cr{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100}
+#cr div{background:#fff;border-radius:14px;padding:22px 28px;text-align:center;max-width:90vw}
+#cr h3{margin:0 0 8px}#cr p{margin:0 0 14px;color:#334}
+#cr button{padding:6px 20px;border:0;border-radius:8px;background:#0476ff;color:#fff;font-family:inherit;cursor:pointer}
+.cap td.sel{background-image:none;box-shadow:none}
+.cap .obj{outline:none!important}.cap .mv,.cap .rs{display:none!important}
+.cap #head:empty{display:none}
+@page{size:A4;margin:0}
+@media print{
+ body{background:#fff;padding:0}.bar,.foot,#cr{display:none!important}
+ #stage{padding:0;overflow:visible}#wrap{width:auto;zoom:1!important;transform:none}
+ #sheet{box-shadow:none;width:210mm;min-height:297mm;padding:12mm}
+ td.sel{background-image:none;box-shadow:none}
+ .obj{outline:none!important}.mv,.rs{display:none!important}#head:empty{display:none}
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="grp"><b>الجدول</b>
+    <label>أعمدة (عمودي) <input type="number" id="nc" value="4" min="1" max="20"></label>
+    <label>أسطر (أفقي) <input type="number" id="nr" value="10" min="1" max="80"></label>
+    <button class="pri" onclick="makeTable()">⚙️ إنشاء الجدول</button>
+    <button onclick="addRow()">+ سطر</button><button onclick="addCol()">+ عمود</button>
+    <button onclick="delRow()">− سطر</button><button onclick="delCol()">− عمود</button>
+    <button onclick="toggleDir()">↔ الاتجاه</button>
+  </div>
+  <div class="grp"><b>الخط</b>
+    <select id="font" onchange="setFont(this.value)">
+      <optgroup label="خطوط عربية">
+        <option>Cairo</option><option>Tajawal</option><option>Almarai</option><option>Amiri</option><option>Noto Naskh Arabic</option>
+        <option>Reem Kufi</option><option>El Messiri</option><option>Aref Ruqaa</option><option>Lateef</option><option>Changa</option>
+      </optgroup>
+      <optgroup label="English fonts">
+        <option>Roboto</option><option>Open Sans</option><option>Montserrat</option><option>Poppins</option><option>Lato</option>
+        <option>Playfair Display</option><option>Merriweather</option><option>Oswald</option><option>Pacifico</option><option>Roboto Mono</option>
+      </optgroup>
+    </select>
+    <input type="number" id="fs" value="14" min="6" max="60" title="حجم الخط" onchange="applyCells(c=>c.style.fontSize=this.value+'px')">
+    <button onclick="applyCells(c=>c.style.fontWeight=c.style.fontWeight==='700'?'400':'700')"><b>B</b></button>
+    <button onclick="applyCells(c=>c.style.fontStyle=c.style.fontStyle==='italic'?'normal':'italic')"><i>I</i></button>
+    <button onclick="applyCells(c=>c.style.textAlign='right')">⇥</button>
+    <button onclick="applyCells(c=>c.style.textAlign='center')">≡</button>
+    <button onclick="applyCells(c=>c.style.textAlign='left')">⇤</button>
+    <button onclick="headRow()">الصف الأول عنوان</button>
+  </div>
+  <div class="grp"><b>الألوان</b>
+    <label title="لون النص">A <input type="color" id="cT" value="#000000" oninput="paint('t',this.value)"></label>
+    <label title="لون التعبئة / الخلفية">🪣 <input type="color" id="cF" value="#ffff99" oninput="paint('f',this.value)"></label>
+    <label title="لون الإطار">▢ <input type="color" id="cS" value="#000000" oninput="paint('s',this.value)"></label>
+    <button onclick="paint('f','transparent')">بدون تعبئة</button>
+  </div>
+  <div class="grp"><b>إضافات</b>
+    <select id="shape">
+      <option value="rect">▭ مستطيل</option><option value="round">▢ مستطيل دائري</option><option value="ellipse">⬭ دائرة / بيضاوي</option>
+      <option value="triangle">△ مثلث</option><option value="diamond">◇ معيّن</option><option value="star">★ نجمة</option>
+      <option value="hexagon">⬡ سداسي</option><option value="pentagon">⬠ خماسي</option><option value="arrow">➡ سهم</option>
+      <option value="cross">✚ علامة زائد</option><option value="line">― خط</option>
+    </select>
+    <button onclick="addShape($('#shape').value)">➕ شكل</button>
+    <button onclick="addText()">🔤 مربع نص</button>
+    <button onclick="$('#img').click()">🖼️ صورة</button>
+    <input type="file" id="img" accept="image/*" hidden onchange="addImg(this)">
+    <button class="dng" onclick="delObj()">🗑️ حذف العنصر</button>
+  </div>
+  <div class="grp"><b>حفظ</b>
+    <button class="pri" onclick="window.print()">🖨️ طباعة</button>
+    <button onclick="dlPDF()">⬇️ PDF</button>
+    <button onclick="dlPNG()">⬇️ صورة PNG</button>
+    <button onclick="dlCSV()">⬇️ Excel (CSV)</button>
+  </div>
+  <div class="grp"><b>تكبير</b>
+    <button onclick="setZoom(zoom-.1)">−</button><span id="zv">100%</span><button onclick="setZoom(zoom+.1)">+</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div id="wrap">
+    <div id="sheet">
+      <div id="head" contenteditable="true" data-ph="اكتب عنوان الورقة هنا (اختياري)"></div>
+      <div id="tbox"></div>
+      <div id="layer"></div>
+    </div>
+  </div>
+</div>
+
+<div class="foot"><button onclick="$('#cr').style.display='flex'">© حقوق محفوظة — Oussama Z</button></div>
+<div id="cr" onclick="if(event.target===this)this.style.display='none'"><div>
+  <h3>© جميع الحقوق محفوظة</h3>
+  <p>تصميم وتطوير: <b>Oussama Z</b><br><span id="yr"></span></p>
+  <button onclick="$('#cr').style.display='none'">إغلاق</button>
+</div></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let zoom=1, sel=[], anchor=null, selObj=null, tbl=null;
+$('#yr').textContent='© '+new Date().getFullYear()+' Oussama Z';
+
+/* ---------- الجدول ---------- */
+function makeTable(){
+  const r=Math.max(1,Math.min(80,+$('#nr').value||1)), c=Math.max(1,Math.min(20,+$('#nc').value||1));
+  if(tbl && [...tbl.querySelectorAll('td')].some(td=>td.textContent.trim()) && !confirm('سيتم استبدال الجدول الحالي ومحتواه. متابعة؟')) return;
+  const dir=tbl?tbl.dir:'';
+  tbl=document.createElement('table'); if(dir) tbl.dir=dir;
+  const tb=document.createElement('tbody');
+  for(let i=0;i<r;i++){const tr=document.createElement('tr');for(let j=0;j<c;j++)tr.appendChild(cell());tb.appendChild(tr);}
+  tbl.appendChild(tb); $('#tbox').replaceChildren(tbl); setSel([]);
+  tbl.addEventListener('mousedown',onCellDown); tbl.addEventListener('focusin',e=>{const td=e.target.closest('td');if(td&&!e.shiftKey){anchor=td;setSel([td]);}});
+  tbl.addEventListener('keydown',onKey);
+}
+function cell(){const td=document.createElement('td');td.contentEditable='true';return td;}
+function rows(){return tbl?[...tbl.rows]:[];}
+function addRow(){if(!tbl)return makeTable();const n=tbl.rows[0].cells.length,tr=tbl.tBodies[0].insertRow();for(let i=0;i<n;i++)tr.appendChild(cell());}
+function addCol(){if(!tbl)return makeTable();rows().forEach(r=>r.appendChild(cell()));}
+function delRow(){if(tbl&&tbl.rows.length>1){tbl.deleteRow(-1);setSel([]);}}
+function delCol(){if(tbl&&tbl.rows[0].cells.length>1){rows().forEach(r=>r.deleteCell(-1));setSel([]);}}
+function toggleDir(){if(!tbl)return;tbl.dir=(tbl.dir==='ltr')?'rtl':'ltr';}
+function headRow(){if(!tbl)return;[...tbl.rows[0].cells].forEach(c=>{const on=c.style.fontWeight==='700';c.style.fontWeight=on?'400':'700';c.style.background=on?'':'#e6e6e6';});}
+
+function setSel(arr){sel.forEach(c=>c.classList.remove('sel'));sel=arr;sel.forEach(c=>c.classList.add('sel'));}
+function onCellDown(e){
+  const td=e.target.closest('td');if(!td)return;selectObj(null);
+  if(e.shiftKey&&anchor){e.preventDefault();const a=pos(anchor),b=pos(td);
+    const r1=Math.min(a[0],b[0]),r2=Math.max(a[0],b[0]),c1=Math.min(a[1],b[1]),c2=Math.max(a[1],b[1]),out=[];
+    for(let i=r1;i<=r2;i++)for(let j=c1;j<=c2;j++)out.push(tbl.rows[i].cells[j]);setSel(out);
+  }else{anchor=td;setSel([td]);}
+}
+function pos(td){return [td.parentElement.rowIndex,td.cellIndex];}
+function onKey(e){ // Enter ينزل للخلية التي تحتها
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const td=e.target.closest('td'),[r,c]=pos(td),n=tbl.rows[r+1];if(n)n.cells[c].focus();}
+}
+function applyCells(fn){const t=sel.length?sel:(tbl?[...tbl.querySelectorAll('td')]:[]);t.forEach(fn);}
+
+/* ---------- الخط والألوان ---------- */
+function setFont(f){$('#sheet').style.setProperty('--font',"'"+f+"'");}
+function paint(k,v){
+  if(selObj){
+    const t=selObj.dataset.type;
+    if(t==='shape'){selObj.querySelectorAll('svg g > *').forEach(s=>{if(k==='f'&&s.tagName!=='line')s.setAttribute('fill',v==='transparent'?'none':v);if(k==='s')s.setAttribute('stroke',v);});}
+    else if(t==='text'){const x=selObj.querySelector('.tx');if(k==='t')x.style.color=v;if(k==='f')x.style.background=v;if(k==='s')selObj.style.border='2px solid '+v;}
+    return;
+  }
+  applyCells(c=>{if(k==='t')c.style.color=v;if(k==='f')c.style.background=v;if(k==='s')c.style.borderColor=v;});
+}
+
+/* ---------- العناصر (أشكال / نص / صور) ---------- */
+const SH={
+ rect:'<rect x="2" y="2" width="96" height="96"/>',
+ round:'<rect x="2" y="2" width="96" height="96" rx="18"/>',
+ ellipse:'<ellipse cx="50" cy="50" rx="48" ry="48"/>',
+ triangle:'<polygon points="50,3 97,97 3,97"/>',
+ diamond:'<polygon points="50,3 97,50 50,97 3,50"/>',
+ star:'<polygon points="50,3 61,38 98,38 68,60 79,95 50,74 21,95 32,60 2,38 39,38"/>',
+ hexagon:'<polygon points="25,5 75,5 98,50 75,95 25,95 2,50"/>',
+ pentagon:'<polygon points="50,3 97,38 79,95 21,95 3,38"/>',
+ arrow:'<polygon points="3,35 60,35 60,8 97,50 60,92 60,65 3,65"/>',
+ cross:'<polygon points="35,3 65,3 65,35 97,35 97,65 65,65 65,97 35,97 35,65 3,65 3,35 35,35"/>',
+ line:'<line x1="2" y1="50" x2="98" y2="50"/>'
+};
+let cnt=0;
+function mkObj(type,html,w,h){
+  const o=document.createElement('div');o.className='obj';o.dataset.type=type;
+  const k=(cnt++%8)*22;o.style.cssText=`left:${80+k}px;top:${170+k}px;width:${w}px;height:${h}px`;
+  o.innerHTML=html+'<span class="mv">✥</span><span class="rs"></span>';
+  $('#layer').appendChild(o);bindObj(o);selectObj(o);return o;
+}
+function addShape(t){
+  const fill=t==='line'?'none':$('#cF').value, sw=t==='line'?4:2;
+  mkObj('shape',`<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g fill="${fill}" stroke="${$('#cS').value}" stroke-width="${sw}" vector-effect="non-scaling-stroke">${SH[t].replace('/>',' vector-effect="non-scaling-stroke"/>')}</g></svg>`,
+    t==='line'?200:130,t==='line'?30:130);
+  const g=selObj.querySelector('g');g.querySelectorAll('*').forEach(x=>{x.setAttribute('fill',fill);x.setAttribute('stroke',$('#cS').value);x.setAttribute('stroke-width',sw);});
+}
+function addText(){const o=mkObj('text','<div class="tx" contenteditable="true">اكتب هنا</div>',200,60);o.querySelector('.tx').focus();}
+function addImg(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const w=Math.min(250,im.width),h=w*im.height/im.width;mkObj('img',`<img src="${r.result}" alt="">`,w,h);};im.src=r.result;};
+  r.readAsDataURL(f);inp.value='';
+}
+function selectObj(o){$$('.obj.on').forEach(x=>x.classList.remove('on'));selObj=o;if(o){o.classList.add('on');setSel([]);}}
+function delObj(){if(selObj){selObj.remove();selObj=null;}}
+document.addEventListener('keydown',e=>{if(e.key==='Delete'&&selObj&&!document.activeElement.isContentEditable)delObj();});
+
+function bindObj(o){
+  const mv=o.querySelector('.mv'),rs=o.querySelector('.rs');
+  const start=(e,mode)=>{
+    e.preventDefault();e.stopPropagation();selectObj(o);
+    const x0=e.clientX,y0=e.clientY,L=o.offsetLeft,T=o.offsetTop,W=o.offsetWidth,H=o.offsetHeight;
+    const move=ev=>{const dx=(ev.clientX-x0)/zoom,dy=(ev.clientY-y0)/zoom;
+      if(mode==='m'){o.style.left=(L+dx)+'px';o.style.top=(T+dy)+'px';}
+      else{o.style.width=Math.max(20,W+dx)+'px';o.style.height=Math.max(12,H+dy)+'px';}};
+    const up=()=>{removeEventListener('pointermove',move);removeEventListener('pointerup',up);};
+    addEventListener('pointermove',move);addEventListener('pointerup',up);
+  };
+  mv.addEventListener('pointerdown',e=>start(e,'m'));
+  rs.addEventListener('pointerdown',e=>start(e,'r'));
+  o.addEventListener('pointerdown',e=>{
+    if(o.dataset.type==='text'){selectObj(o);return;}   // النص: نحرّكه من المقبض ✥
+    start(e,'m');
+  });
+}
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.obj,.bar,#tbox'))selectObj(null);});
+
+/* ---------- التكبير ---------- */
+function setZoom(z){zoom=Math.max(.3,Math.min(2,+z.toFixed(2)));$('#wrap').style.zoom=zoom;$('#zv').textContent=Math.round(zoom*100)+'%';}
+
+/* ---------- التنزيل ---------- */
+async function snap(){
+  selectObj(null);setSel([]);document.body.classList.add('cap');
+  const w=$('#wrap'),z=w.style.zoom;w.style.zoom=1;
+  try{await document.fonts.ready;return await html2canvas($('#sheet'),{scale:2,backgroundColor:'#ffffff',useCORS:true});}
+  finally{w.style.zoom=z;document.body.classList.remove('cap');}
+}
+function save(href,name){const a=document.createElement('a');a.href=href;a.download=name;document.body.appendChild(a);a.click();a.remove();}
+async function dlPNG(){try{save((await snap()).toDataURL('image/png'),'sheet.png');}catch(e){alert('تعذر إنشاء الصورة');}}
+async function dlPDF(){
+  try{
+    const cv=await snap(),{jsPDF}=window.jspdf,pdf=new jsPDF('p','mm','a4'),pw=210,ph=297,ih=cv.height*pw/cv.width,img=cv.toDataURL('image/jpeg',.95);
+    for(let i=0;i<Math.ceil(ih/ph-.01);i++){if(i)pdf.addPage();pdf.addImage(img,'JPEG',0,-i*ph,pw,ih);}
+    pdf.save('sheet.pdf');
+  }catch(e){alert('تعذر إنشاء ملف PDF');}
+}
+function dlCSV(){
+  if(!tbl)return alert('أنشئ الجدول أولاً');
+  const q=v=>'"'+v.replace(/"/g,'""')+'"';
+  const csv=rows().map(r=>[...r.cells].map(c=>q(c.innerText.trim())).join(',')).join('\r\n');
+  save(URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),'sheet.csv');
+}
+
+/* ---------- بداية ---------- */
+makeTable();
+setZoom(Math.min(1,(innerWidth-16)/794));
+</script>
+</body>
+</html>
