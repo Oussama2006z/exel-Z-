@@ -27,9 +27,15 @@ body{margin:0;background:#cfd6df;font-family:'Cairo',sans-serif;padding-bottom:6
 #sheet{position:relative;width:794px;min-height:1123px;background:#fff;color:#000;padding:40px 36px 50px;box-shadow:0 4px 24px rgba(0,0,0,.35);font-family:var(--font,'Cairo'),sans-serif}
 #head{min-height:30px;font-size:20px;font-weight:700;text-align:center;margin-bottom:12px;outline:none}
 #head:empty::before{content:attr(data-ph);color:#aab;font-weight:400}
-table{width:100%;border-collapse:collapse;table-layout:fixed}
-td{border:1px solid #000;padding:4px 6px;height:30px;text-align:center;font-size:14px;word-break:break-word;outline:none;vertical-align:middle}
+#tbox{position:relative}
+table{border-collapse:collapse;table-layout:fixed}
+td{border:1px solid #000;padding:4px 6px;text-align:center;font-size:14px;word-break:break-word;outline:none;vertical-align:middle}
 td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18));box-shadow:inset 0 0 0 2px #0476ff}
+#sheet.free{cursor:text}
+.rz{position:absolute;z-index:5;background:#0476ff;opacity:0;transition:opacity .15s;touch-action:none}
+.rz:hover{opacity:.55}.rzc{cursor:col-resize}.rzr{cursor:row-resize}
+.tmv{position:absolute;z-index:6;top:-24px;background:#0476ff;color:#fff;border-radius:5px;padding:0 8px;font-size:13px;cursor:move;touch-action:none}
+.cap .rz,.cap .tmv{display:none!important}
 #layer{position:absolute;inset:0;pointer-events:none}
 .obj{position:absolute;pointer-events:auto;touch-action:none;cursor:move}
 .obj.on{outline:2px dashed #0476ff}
@@ -55,7 +61,7 @@ td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18))
  #stage{padding:0;overflow:visible}#wrap{width:auto;zoom:1!important;transform:none}
  #sheet{box-shadow:none;width:210mm;min-height:297mm;padding:12mm}
  td.sel{background-image:none;box-shadow:none}
- .obj{outline:none!important}.mv,.rs{display:none!important}#head:empty{display:none}
+ .obj{outline:none!important}.mv,.rs,.rz,.tmv{display:none!important}#head:empty{display:none}
  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
@@ -70,6 +76,9 @@ td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18))
     <button onclick="addRow()">+ سطر</button><button onclick="addCol()">+ عمود</button>
     <button onclick="delRow()">− سطر</button><button onclick="delCol()">− عمود</button>
     <button onclick="toggleDir()">↔ الاتجاه</button>
+    <button onclick="scaleTable(.9)">🔍− تصغير الجدول</button><button onclick="scaleTable(1.1)">🔍+ تكبير الجدول</button>
+    <label title="عرض عمود الخانة المحددة">عرض <input type="number" id="cw" min="16" max="700" onchange="setDims()"></label>
+    <label title="ارتفاع سطر الخانة المحددة">ارتفاع <input type="number" id="ch" min="12" max="500" onchange="setDims()"></label>
   </div>
   <div class="grp"><b>الخط</b>
     <select id="font" onchange="setFont(this.value)">
@@ -105,6 +114,8 @@ td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18))
     </select>
     <button onclick="addShape($('#shape').value)">➕ شكل</button>
     <button onclick="addText()">🔤 مربع نص</button>
+    <button id="freeBtn" onclick="toggleFree()">✍️ كتابة حرة</button>
+    <button onclick="scaleObj(1.1)">🔍+ تكبير العنصر</button><button onclick="scaleObj(.9)">🔍− تصغير العنصر</button>
     <button onclick="$('#img').click()">🖼️ صورة</button>
     <input type="file" id="img" accept="image/*" hidden onchange="addImg(this)">
     <button class="dng" onclick="delObj()">🗑️ حذف العنصر</button>
@@ -139,31 +150,95 @@ td.sel{background-image:linear-gradient(rgba(0,120,255,.18),rgba(0,120,255,.18))
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let zoom=1, sel=[], anchor=null, selObj=null, tbl=null;
+let zoom=1, sel=[], anchor=null, selObj=null, tbl=null, free=false, tx=0, ty=0, raf=0, cnt=0;
 $('#yr').textContent='© '+new Date().getFullYear()+' Oussama Z';
 
 /* ---------- الجدول ---------- */
+const cols=()=>tbl?[...tbl.querySelectorAll('col')]:[];
+const fitW=()=>{tbl.style.width=cols().reduce((s,c)=>s+parseFloat(c.style.width),0)+'px';};
+const schedule=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(layoutHandles);};
+function cell(){const td=document.createElement('td');td.contentEditable='true';return td;}
+
 function makeTable(){
   const r=Math.max(1,Math.min(80,+$('#nr').value||1)), c=Math.max(1,Math.min(20,+$('#nc').value||1));
   if(tbl && [...tbl.querySelectorAll('td')].some(td=>td.textContent.trim()) && !confirm('سيتم استبدال الجدول الحالي ومحتواه. متابعة؟')) return;
   const dir=tbl?tbl.dir:'';
   tbl=document.createElement('table'); if(dir) tbl.dir=dir;
-  const tb=document.createElement('tbody');
-  for(let i=0;i<r;i++){const tr=document.createElement('tr');for(let j=0;j<c;j++)tr.appendChild(cell());tb.appendChild(tr);}
-  tbl.appendChild(tb); $('#tbox').replaceChildren(tbl); setSel([]);
-  tbl.addEventListener('mousedown',onCellDown); tbl.addEventListener('focusin',e=>{const td=e.target.closest('td');if(td&&!e.shiftKey){anchor=td;setSel([td]);}});
+  const cg=document.createElement('colgroup'), w=Math.max(30,Math.floor(722/c));
+  for(let j=0;j<c;j++){const col=document.createElement('col');col.style.width=w+'px';cg.appendChild(col);}
+  tbl.appendChild(cg);
+  const tb=tbl.createTBody();
+  for(let i=0;i<r;i++){const tr=tb.insertRow();tr.style.height='32px';for(let j=0;j<c;j++)tr.appendChild(cell());}
+  fitW(); $('#tbox').replaceChildren(tbl); setSel([]);
+  tbl.addEventListener('mousedown',onCellDown);
+  tbl.addEventListener('focusin',e=>{const td=e.target.closest('td');if(td&&!e.shiftKey){anchor=td;setSel([td]);}});
   tbl.addEventListener('keydown',onKey);
+  tbl.addEventListener('input',schedule);
+  layoutHandles();
 }
-function cell(){const td=document.createElement('td');td.contentEditable='true';return td;}
-function rows(){return tbl?[...tbl.rows]:[];}
-function addRow(){if(!tbl)return makeTable();const n=tbl.rows[0].cells.length,tr=tbl.tBodies[0].insertRow();for(let i=0;i<n;i++)tr.appendChild(cell());}
-function addCol(){if(!tbl)return makeTable();rows().forEach(r=>r.appendChild(cell()));}
-function delRow(){if(tbl&&tbl.rows.length>1){tbl.deleteRow(-1);setSel([]);}}
-function delCol(){if(tbl&&tbl.rows[0].cells.length>1){rows().forEach(r=>r.deleteCell(-1));setSel([]);}}
-function toggleDir(){if(!tbl)return;tbl.dir=(tbl.dir==='ltr')?'rtl':'ltr';}
+function addRow(){if(!tbl)return makeTable();const n=tbl.rows[0].cells.length,last=tbl.rows[tbl.rows.length-1],tr=tbl.tBodies[0].insertRow();tr.style.height=last.style.height;for(let i=0;i<n;i++)tr.appendChild(cell());layoutHandles();}
+function addCol(){if(!tbl)return makeTable();const g=tbl.querySelector('colgroup'),col=document.createElement('col');col.style.width=g.lastElementChild.style.width;g.appendChild(col);[...tbl.rows].forEach(r=>r.appendChild(cell()));fitW();layoutHandles();}
+function delRow(){if(tbl&&tbl.rows.length>1){tbl.deleteRow(-1);setSel([]);layoutHandles();}}
+function delCol(){if(tbl&&tbl.rows[0].cells.length>1){tbl.querySelector('colgroup').lastElementChild.remove();[...tbl.rows].forEach(r=>r.deleteCell(-1));fitW();setSel([]);layoutHandles();}}
+function toggleDir(){if(!tbl)return;tbl.dir=(tbl.dir==='ltr')?'rtl':'ltr';layoutHandles();}
 function headRow(){if(!tbl)return;[...tbl.rows[0].cells].forEach(c=>{const on=c.style.fontWeight==='700';c.style.fontWeight=on?'400':'700';c.style.background=on?'':'#e6e6e6';});}
 
-function setSel(arr){sel.forEach(c=>c.classList.remove('sel'));sel=arr;sel.forEach(c=>c.classList.add('sel'));}
+/* تكبير / تصغير الجدول كله */
+function scaleTable(f){
+  if(!tbl)return;
+  const hs=[...tbl.rows].map(r=>r.offsetHeight), fs=[...tbl.querySelectorAll('td')].map(td=>parseFloat(getComputedStyle(td).fontSize));
+  cols().forEach(c=>c.style.width=Math.max(16,parseFloat(c.style.width)*f)+'px');
+  [...tbl.rows].forEach((r,i)=>r.style.height=Math.max(12,hs[i]*f)+'px');
+  [...tbl.querySelectorAll('td')].forEach((td,i)=>td.style.fontSize=Math.max(5,fs[i]*f)+'px');
+  fitW();layoutHandles();syncDims();
+}
+/* مقاسات الخانة المحددة (عرض العمود / ارتفاع السطر) */
+function syncDims(){
+  const td=sel[0];
+  if(!td||!tbl){$('#cw').value='';$('#ch').value='';return;}
+  $('#cw').value=Math.round(parseFloat(cols()[td.cellIndex].style.width));
+  $('#ch').value=Math.round(td.parentElement.offsetHeight);
+}
+function setDims(){
+  if(!sel.length)return alert('حدد خانة أولاً');
+  const w=+$('#cw').value,h=+$('#ch').value,cs=cols();
+  sel.forEach(td=>{if(w>=16)cs[td.cellIndex].style.width=w+'px';if(h>=12)td.parentElement.style.height=h+'px';});
+  fitW();layoutHandles();
+}
+
+/* مقابض السحب: حدود الأعمدة والأسطر + مقبض نقل الجدول */
+function layoutHandles(){
+  const box=$('#tbox');box.querySelectorAll('.rz,.tmv').forEach(x=>x.remove());
+  if(!tbl)return;
+  const rtl=getComputedStyle(tbl).direction==='rtl', tl=tbl.offsetLeft, tt=tbl.offsetTop, W=tbl.offsetWidth, H=tbl.offsetHeight;
+  [...tbl.rows[0].cells].forEach((td,i)=>box.appendChild(mkRz('c',tl+td.offsetLeft+(rtl?0:td.offsetWidth)-4,tt,8,H,i,rtl)));
+  [...tbl.rows].forEach((tr,i)=>box.appendChild(mkRz('r',tl,tt+tr.offsetTop+tr.offsetHeight-4,W,8,i,rtl)));
+  const m=document.createElement('div');m.className='tmv';m.textContent='✥ نقل الجدول';m.style.left=tl+'px';m.style.top=(tt-24)+'px';
+  m.addEventListener('pointerdown',e=>{
+    e.preventDefault();const x0=e.clientX,y0=e.clientY,a=tx,b=ty;
+    const mv=ev=>{tx=a+(ev.clientX-x0)/zoom;ty=b+(ev.clientY-y0)/zoom;box.style.left=tx+'px';box.style.top=ty+'px';};
+    const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  });
+  box.appendChild(m);
+}
+function mkRz(kind,l,t,w,h,i,rtl){
+  const d=document.createElement('div');d.className='rz rz'+kind;d.style.cssText=`left:${l}px;top:${t}px;width:${w}px;height:${h}px`;
+  d.addEventListener('pointerdown',e=>{
+    e.preventDefault();e.stopPropagation();
+    const x0=e.clientX,y0=e.clientY;let mv;
+    if(kind==='c'){const col=cols()[i],w0=parseFloat(col.style.width),sg=rtl?-1:1;
+      mv=ev=>{col.style.width=Math.max(16,w0+sg*(ev.clientX-x0)/zoom)+'px';fitW();schedule();syncDims();};}
+    else{const tr=tbl.rows[i],h0=tr.offsetHeight;
+      mv=ev=>{tr.style.height=Math.max(12,h0+(ev.clientY-y0)/zoom)+'px';schedule();syncDims();};}
+    const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  });
+  return d;
+}
+
+/* ---------- التحديد ---------- */
+function setSel(arr){sel.forEach(c=>c.classList.remove('sel'));sel=arr;sel.forEach(c=>c.classList.add('sel'));syncDims();}
 function onCellDown(e){
   const td=e.target.closest('td');if(!td)return;selectObj(null);
   if(e.shiftKey&&anchor){e.preventDefault();const a=pos(anchor),b=pos(td);
@@ -172,13 +247,18 @@ function onCellDown(e){
   }else{anchor=td;setSel([td]);}
 }
 function pos(td){return [td.parentElement.rowIndex,td.cellIndex];}
-function onKey(e){ // Enter ينزل للخلية التي تحتها
+function onKey(e){
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const td=e.target.closest('td'),[r,c]=pos(td),n=tbl.rows[r+1];if(n)n.cells[c].focus();}
 }
-function applyCells(fn){const t=sel.length?sel:(tbl?[...tbl.querySelectorAll('td')]:[]);t.forEach(fn);}
+/* تنسيق: على مربع النص المحدد، أو الخلايا المحددة، أو الجدول كله */
+function applyCells(fn){
+  if(selObj){if(selObj.dataset.type==='text')fn(selObj.querySelector('.tx'));return;}
+  (sel.length?sel:(tbl?[...tbl.querySelectorAll('td')]:[])).forEach(fn);
+  schedule();
+}
 
 /* ---------- الخط والألوان ---------- */
-function setFont(f){$('#sheet').style.setProperty('--font',"'"+f+"'");}
+function setFont(f){$('#sheet').style.setProperty('--font',"'"+f+"'");document.fonts.ready.then(schedule);setTimeout(schedule,400);}
 function paint(k,v){
   if(selObj){
     const t=selObj.dataset.type;
@@ -203,20 +283,25 @@ const SH={
  cross:'<polygon points="35,3 65,3 65,35 97,35 97,65 65,65 65,97 35,97 35,65 3,65 3,35 35,35"/>',
  line:'<line x1="2" y1="50" x2="98" y2="50"/>'
 };
-let cnt=0;
-function mkObj(type,html,w,h){
+function mkObj(type,html,w,h,x,y){
   const o=document.createElement('div');o.className='obj';o.dataset.type=type;
-  const k=(cnt++%8)*22;o.style.cssText=`left:${80+k}px;top:${170+k}px;width:${w}px;height:${h}px`;
+  const k=(cnt++%8)*22;
+  o.style.cssText=`left:${x??80+k}px;top:${y??170+k}px;width:${w}px;height:${h}px`;
   o.innerHTML=html+'<span class="mv">✥</span><span class="rs"></span>';
   $('#layer').appendChild(o);bindObj(o);selectObj(o);return o;
 }
 function addShape(t){
-  const fill=t==='line'?'none':$('#cF').value, sw=t==='line'?4:2;
-  mkObj('shape',`<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g fill="${fill}" stroke="${$('#cS').value}" stroke-width="${sw}" vector-effect="non-scaling-stroke">${SH[t].replace('/>',' vector-effect="non-scaling-stroke"/>')}</g></svg>`,
-    t==='line'?200:130,t==='line'?30:130);
-  const g=selObj.querySelector('g');g.querySelectorAll('*').forEach(x=>{x.setAttribute('fill',fill);x.setAttribute('stroke',$('#cS').value);x.setAttribute('stroke-width',sw);});
+  const fill=t==='line'?'none':$('#cF').value, sw=t==='line'?4:2, st=$('#cS').value;
+  const o=mkObj('shape',`<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g>${SH[t]}</g></svg>`,t==='line'?200:130,t==='line'?30:130);
+  o.querySelectorAll('g > *').forEach(x=>{x.setAttribute('fill',fill);x.setAttribute('stroke',st);x.setAttribute('stroke-width',sw);x.setAttribute('vector-effect','non-scaling-stroke');});
 }
-function addText(){const o=mkObj('text','<div class="tx" contenteditable="true">اكتب هنا</div>',200,60);o.querySelector('.tx').focus();}
+function addText(x,y,isFree){
+  const o=mkObj('text',`<div class="tx" contenteditable="true">${isFree===true?'':'اكتب هنا'}</div>`,isFree===true?220:200,isFree===true?44:60,isFree===true?x:undefined,isFree===true?y:undefined);
+  const t=o.querySelector('.tx');
+  if(isFree===true){t.addEventListener('blur',()=>{if(!t.textContent.trim())o.remove();});}
+  else t.focus();
+  return o;
+}
 function addImg(inp){
   const f=inp.files[0];if(!f)return;const r=new FileReader();
   r.onload=()=>{const im=new Image();im.onload=()=>{const w=Math.min(250,im.width),h=w*im.height/im.width;mkObj('img',`<img src="${r.result}" alt="">`,w,h);};im.src=r.result;};
@@ -224,6 +309,14 @@ function addImg(inp){
 }
 function selectObj(o){$$('.obj.on').forEach(x=>x.classList.remove('on'));selObj=o;if(o){o.classList.add('on');setSel([]);}}
 function delObj(){if(selObj){selObj.remove();selObj=null;}}
+/* تكبير / تصغير العنصر المحدد حول مركزه */
+function scaleObj(f){
+  if(!selObj)return alert('اختر شكلاً أو صورة أو مربع نص أولاً');
+  const w=selObj.offsetWidth,h=selObj.offsetHeight,nw=Math.max(20,w*f),nh=Math.max(12,h*f);
+  selObj.style.left=(selObj.offsetLeft-(nw-w)/2)+'px';selObj.style.top=(selObj.offsetTop-(nh-h)/2)+'px';
+  selObj.style.width=nw+'px';selObj.style.height=nh+'px';
+  const t=selObj.querySelector('.tx');if(t)t.style.fontSize=Math.max(6,parseFloat(getComputedStyle(t).fontSize)*f)+'px';
+}
 document.addEventListener('keydown',e=>{if(e.key==='Delete'&&selObj&&!document.activeElement.isContentEditable)delObj();});
 
 function bindObj(o){
@@ -240,11 +333,24 @@ function bindObj(o){
   mv.addEventListener('pointerdown',e=>start(e,'m'));
   rs.addEventListener('pointerdown',e=>start(e,'r'));
   o.addEventListener('pointerdown',e=>{
-    if(o.dataset.type==='text'){selectObj(o);return;}   // النص: نحرّكه من المقبض ✥
+    if(o.dataset.type==='text'){selectObj(o);return;}
     start(e,'m');
   });
 }
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('.obj,.bar,#tbox'))selectObj(null);});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.obj,.bar,#tbox'))selectObj(null);},true);
+
+/* ---------- الكتابة في أي مكان ---------- */
+function toggleFree(){
+  free=!free;$('#sheet').classList.toggle('free',free);
+  const b=$('#freeBtn');b.classList.toggle('pri',free);b.textContent=free?'✍️ الكتابة الحرة: مفعّلة':'✍️ كتابة حرة';
+}
+$('#sheet').addEventListener('pointerdown',e=>{
+  if(!free)return;
+  const s=$('#sheet'),b=$('#tbox');
+  if(e.target!==s&&e.target!==b)return;               // فقط على الأماكن الفارغة
+  const x=e.offsetX+(e.target===b?b.offsetLeft:0), y=e.offsetY+(e.target===b?b.offsetTop:0);
+  const o=addText(x,y,true);setTimeout(()=>o.querySelector('.tx').focus(),0);
+});
 
 /* ---------- التكبير ---------- */
 function setZoom(z){zoom=Math.max(.3,Math.min(2,+z.toFixed(2)));$('#wrap').style.zoom=zoom;$('#zv').textContent=Math.round(zoom*100)+'%';}
@@ -268,13 +374,14 @@ async function dlPDF(){
 function dlCSV(){
   if(!tbl)return alert('أنشئ الجدول أولاً');
   const q=v=>'"'+v.replace(/"/g,'""')+'"';
-  const csv=rows().map(r=>[...r.cells].map(c=>q(c.innerText.trim())).join(',')).join('\r\n');
+  const csv=[...tbl.rows].map(r=>[...r.cells].map(c=>q(c.innerText.trim())).join(',')).join('\r\n');
   save(URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),'sheet.csv');
 }
 
 /* ---------- بداية ---------- */
 makeTable();
 setZoom(Math.min(1,(innerWidth-16)/794));
+document.fonts.ready.then(schedule);
 </script>
 </body>
 </html>
